@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Registration - Civic Issue Reporter</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #ff9800, #4caf50); /* orange to green */
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .register-container {
+      background: #fff;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+    .register-container h2 { margin-bottom: 20px; color: #1b5e20; }
+    .register-container input, .register-container select {
+      width: 100%;
+      padding: 12px;
+      margin: 12px 0;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      outline: none;
+      font-size: 14px;
+    }
+    .register-container button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 12px;
+      background: #1b5e20;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: 0.3s;
+    }
+    .register-container button:hover { background: #388e3c; }
+    .register-container a {
+      display: block;
+      margin-top: 12px;
+      font-size: 14px;
+      color: #1b5e20;
+      text-decoration: none;
+    }
+    .register-container a:hover { text-decoration: underline; }
+    .hidden { display: none; }
+    #otpSection { margin-top: 12px; }
+    #recaptcha-container { margin: 20px auto; }
+  </style>
+</head>
+<body>
+  <div class="register-container">
+    <h2>User Registration</h2>
+    <input type="text" id="fullname" placeholder="Enter Full Name">
+    <input type="tel" id="mobile" placeholder="Enter Mobile Number" maxlength="10">
+    <div id="recaptcha-container"></div>
+    <button id="getOtpBtn" onclick="getOTP()">Get OTP</button>
+    <div id="otpSection" class="hidden">
+      <input type="text" id="otp" placeholder="Enter OTP" maxlength="6">
+      <button onclick="register()">Register</button>
+      <a href="#" onclick="resendOTP()">Resend OTP</a>
+    </div>
+    <a href="login.html">Already have an account? Login</a>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-firestore.js"></script>
+  <script src="firebase-client.js"></script>
+
+  <script>
+    // Initialize the Recaptcha Verifier on window load
+    window.onload = function() {
+      window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+        'size': 'invisible',
+        'callback': (response) => {
+          // reCAPTCHA solved, you can now send OTP.
+        }
+      });
+      // Render the reCAPTCHA
+      window.recaptchaVerifier.render().then((widgetId) => {
+        window.recaptchaWidgetId = widgetId;
+      });
+    };
+
+    function getOTP() {
+      const mobile = document.getElementById("mobile").value;
+      const fullname = document.getElementById("fullname").value;
+
+      if (fullname.trim() === "") {
+        alert("Please enter your full name.");
+        return;
+      }
+      if (mobile.length !== 10) {
+        alert("Please enter a valid 10-digit mobile number.");
+        return;
+      }
+
+      const phoneNumber = "+91" + mobile;
+      const appVerifier = window.recaptchaVerifier;
+      
+      firebase.auth().signInWithPhoneNumber(phoneNumber, appVerifier)
+        .then((confirmationResult) => {
+            window.confirmationResult = confirmationResult;
+            document.getElementById("getOtpBtn").classList.add("hidden");
+            document.getElementById("otpSection").classList.remove("hidden");
+            alert("OTP sent to " + phoneNumber);
+        }).catch((error) => {
+            console.error("SMS not sent error:", error);
+            alert("Error sending OTP. Please make sure the reCAPTCHA is solved and try again.");
+            // Reset the reCAPTCHA if something goes wrong
+            grecaptcha.reset(window.recaptchaWidgetId);
+        });
+    }
+
+    function register() {
+        const otp = document.getElementById("otp").value;
+        const fullname = document.getElementById("fullname").value;
+        const mobile = document.getElementById("mobile").value;
+
+        if (otp.length !== 6) {
+            alert("Please enter a valid 6-digit OTP.");
+            return;
+        }
+
+        window.confirmationResult.confirm(otp).then((result) => {
+            const user = result.user;
+            // Add user data to Firestore
+            return db.collection("users").doc(user.uid).set({
+                fullname: fullname,
+                mobile: mobile,
+                uid: user.uid
+            });
+        }).then(() => {
+            alert("Registration Successful!");
+            window.location.href = "login.html";
+        }).catch((error) => {
+            console.error("OTP Confirmation Error:", error);
+            alert("Invalid OTP or registration failed. Please try again.");
+        });
+    }
+
+    function resendOTP() {
+      getOTP();
+    }
+  </script>
+</body>
+</html>
